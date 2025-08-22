@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hiring Needs Spreadsheet & Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 40;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+        }
+        #calendar-container {
+            position: relative;
+        }
+        .calendar-day {
+            position: relative;
+            min-height: 6rem;
+        }
+        .date-marker {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            font-size: 1.2rem;
+            line-height: 1;
+            pointer-events: auto; /* Make markers interactive */
+            cursor: pointer;
+        }
+        .active-req-count {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background-color: rgba(107, 114, 128, 0.7); /* gray-500 with opacity */
+            color: white;
+            border-radius: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            pointer-events: auto; /* Make count interactive */
+            cursor: pointer;
+        }
+        #calendar-tooltip {
+            pointer-events: none; /* Tooltip should not be interactive */
+            transition: opacity 0.2s;
+        }
+        .filter-dropdown-content {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="login-view" class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    Sign in to your account
+                </h2>
+            </div>
+            <form id="login-form" class="mt-8 space-y-6">
+                <div class="rounded-md shadow-sm -space-y-px">
+                    <div>
+                        <label for="username" class="sr-only">Username</label>
+                        <input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Username">
+                    </div>
+                    <div>
+                        <label for="password" class="sr-only">Password</label>
+                        <input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Password">
+                    </div>
+                </div>
+                <p id="login-error" class="text-red-500 text-sm mt-1 hidden">Invalid username or password.</p>
+                <div>
+                    <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Sign in
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-view" class="hidden">
+        <div class="container mx-auto p-4 md:p-8">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold mb-6 text-gray-900">Hiring Dashboard</h1>
+                <button id="logout-btn" class="mb-6 text-sm text-red-600 hover:underline">Logout</button>
+            </div>
+
+            <div id="main-filter-panel" class="mb-6 p-4 bg-white rounded-lg shadow">
+                <h3 class="font-semibold mb-2 text-gray-700">Filters</h3>
+                <div class="flex flex-wrap items-center gap-4">
+                    <div id="filter-container" class="flex flex-wrap items-center gap-4"></div>
+                    <button id="clear-filters-btn" class="text-sm text-blue-600 hover:underline">Clear All</button>
+                    <button id="toggle-confidential-btn" class="text-sm text-red-600 hover:underline ml-4">View Confidential</button>
+                </div>
+            </div>
+
+
+            <div class="mb-6">
+                <button id="dashboard-view-btn" class="bg-white text-blue-600 px-4 py-2 rounded-l-lg shadow-md hover:bg-gray-50 transition-colors">Dashboard</button>
+                <button id="spreadsheet-view-btn" class="bg-blue-600 text-white px-4 py-2 shadow-md hover:bg-blue-700 transition-colors">Spreadsheet View</button>
+                <button id="calendar-view-btn" class="bg-white text-blue-600 px-4 py-2 shadow-md hover:bg-gray-50 transition-colors">Calendar View</button>
+                <button id="hires-view-btn" class="bg-white text-blue-600 px-4 py-2 rounded-r-lg shadow-md hover:bg-gray-50 transition-colors">Hires View</button>
+            </div>
+
+            <div id="dashboard-view" class="hidden">
+                 <div class="mb-6 p-4 bg-gray-50 rounded-lg border">
+                     <h3 class="font-semibold mb-2 text-gray-700">Dashboard Date Range</h3>
+                     <div class="flex flex-wrap items-center gap-4">
+                         <div>
+                             <select id="dashboard-date-filter" class="bg-white border border-gray-300 rounded-md shadow-sm py-1 px-3 text-sm">
+                                 <option value="all">All Time</option>
+                                 <option value="month">This Month</option>
+                                 <option value="quarter">This Quarter</option>
+                                 <option value="year">This Year</option>
+                                 <option value="custom">Custom Dates</option>
+                             </select>
+                         </div>
+                         <div id="custom-date-container" class="hidden items-center gap-2 text-sm">
+                             <input type="date" id="dashboard-start-date" class="bg-white border border-gray-300 rounded-md shadow-sm py-1 px-3">
+                             <span>to</span>
+                             <input type="date" id="dashboard-end-date" class="bg-white border border-gray-300 rounded-md shadow-sm py-1 px-3">
+                         </div>
+                     </div>
+                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow relative">
+                        <h4 class="text-gray-500 font-medium">Total Hires</h4>
+                        <p id="total-hires-stat" class="text-4xl font-bold mt-2">0</p>
+                        <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 widget-filter-btn" data-widget="totalHires">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+                        </button>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow relative">
+                        <h4 class="text-gray-500 font-medium">Average Time to Fill</h4>
+                        <p class="text-4xl font-bold mt-2"><span id="avg-ttf-stat">0</span> days</p>
+                         <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 widget-filter-btn" data-widget="avgTtf">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+                         </button>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow relative" data-access="compensation">
+                        <h4 class="text-gray-500 font-medium">Referral Bonuses Paid</h4>
+                        <p id="referral-total-stat" class="text-4xl font-bold mt-2">$0</p>
+                          <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 widget-filter-btn" data-widget="referralTotal">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+                         </button>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow lg:col-span-1 relative">
+                        <h4 class="text-gray-500 font-medium mb-3">Hires by Recruiter</h4>
+                        <div id="hires-by-recruiter-stat" class="space-y-2 text-sm"></div>
+                          <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 widget-filter-btn" data-widget="hiresByRecruiter">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+                         </button>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow lg:col-span-2 relative">
+                        <h4 class="text-gray-500 font-medium mb-3">Hires by Source</h4>
+                        <div id="hires-by-source-stat" class="space-y-2 text-sm"></div>
+                          <button class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 widget-filter-btn" data-widget="hiresBySource">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="spreadsheet-view">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">Hiring Needs</h2>
+                    <div class="flex items-center gap-4">
+                        <button id="export-spreadsheet-btn" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 transition-colors text-sm">Export to XLSX</button>
+                        <button id="add-new-btn" class="bg-green-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-green-600 transition-colors">Add New Role</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto bg-white rounded-lg shadow">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role/Position</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"># Openings</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Base Salary</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equity</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Annual Bonus</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Open Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target Start Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Day to Hire</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Recruiter</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hiring Manager</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hire Type</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Greenhouse</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="spreadsheet-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="calendar-view" class="hidden">
+                <div id="calendar-container" class="bg-white rounded-lg shadow p-4 md:p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-200 transition-colors">&lt;</button>
+                        <h2 id="calendar-header" class="text-xl md:text-2xl font-semibold"></h2>
+                        <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-200 transition-colors">&gt;</button>
+                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-1 md:gap-2">
+                        </div>
+                </div>
+            </div>
+            
+            <div id="hires-view" class="hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">Hires</h2>
+                    <button id="export-hires-btn" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 transition-colors text-sm">Export to XLSX</button>
+                </div>
+                <div class="overflow-x-auto bg-white rounded-lg shadow">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hired Name</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role/Position</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work-Type</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reporting Manager</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recruiter</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TTF (Days)</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral Bonus</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hires-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-backdrop" class="modal-backdrop"></div>
+    <div id="entry-modal" class="modal bg-white rounded-lg shadow-xl w-11/12 md:w-1/2 lg:w-2/5 p-6 overflow-y-auto max-h-screen">
+        <h3 id="modal-title" class="text-2xl font-bold mb-6">Add New Role</h3>
+        <form id="entry-form">
+            <input type="hidden" id="edit-id">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="department" class="block text-sm font-medium text-gray-700">Department</label>
+                    <input type="text" id="department" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div>
+                    <label for="role" class="block text-sm font-medium text-gray-700">Role/Position</label>
+                    <input type="text" id="role" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                 <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                    <select id="location" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option>Columbus</option>
+                        <option>Remote-ET</option>
+                        <option>Remote-CT</option>
+                        <option>Remote-MT</option>
+                        <option>Remote-PT</option>
+                        <option>Remote-Ohio</option>
+                        <option>Remote-Arizona</option>
+                        <option>Bogota</option>
+                        <option>Manila</option>
+                        <option>Lviv</option>
+                        <option>Krakow</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="priority" class="block text-sm font-medium text-gray-700">Priority</label>
+                    <select id="priority" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="status" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option>Active</option>
+                        <option>Filled</option>
+                        <option>Closed</option>
+                        <option>Canceled</option>
+                        <option>Pending Approval</option>
+                        <option>Coming Soon</option>
+                    </select>
+                </div>
+                 <div>
+                    <label for="openings" class="block text-sm font-medium text-gray-700"># of Openings</label>
+                    <input type="number" id="openings" min="1" value="1" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div>
+                    <label for="recruiter" class="block text-sm font-medium text-gray-700">Assigned Recruiter</label>
+                    <input type="text" id="recruiter" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                 <div>
+                    <label for="hiring-manager" class="block text-sm font-medium text-gray-700">Hiring Manager</label>
+                    <input type="text" id="hiring-manager" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                 <div>
+                    <label for="open-date" class="block text-sm font-medium text-gray-700">Open Date</label>
+                    <input type="date" id="open-date" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div>
+                    <label for="start-date" class="block text-sm font-medium text-gray-700">Target Start Date</label>
+                    <input type="date" id="start-date" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                 <div>
+                    <label for="hire-type" class="block text-sm font-medium text-gray-700">Hire Type</label>
+                    <select id="hire-type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option>External</option>
+                        <option>Internal</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t">
+                 <h4 class="text-lg font-medium text-gray-800 mb-4">Compensation</h4>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="base-salary" class="block text-sm font-medium text-gray-700">Base Salary</label>
+                        <input type="number" id="base-salary" placeholder="e.g., 90000" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="equity" class="block text-sm font-medium text-gray-700">Equity</label>
+                        <input type="number" id="equity" placeholder="e.g., 7500" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="annual-bonus" class="block text-sm font-medium text-gray-700">Annual Bonus</label>
+                        <input type="number" id="annual-bonus" placeholder="e.g., 15000" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                 </div>
+            </div>
+
+             <div class="mt-6 pt-4 border-t">
+                <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea id="notes" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+            </div>
+
+            <div class="mt-6 pt-4 border-t grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="greenhouse-link" class="block text-sm font-medium text-gray-700">Greenhouse Link</label>
+                    <input type="url" id="greenhouse-link" placeholder="https://app.greenhouse.io/..." class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center pt-6">
+                    <input type="checkbox" id="confidential" class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                    <label for="confidential" class="ml-2 block text-sm text-gray-900">Confidential Role</label>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" id="cancel-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors">Cancel</button>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
+            </div>
+        </form>
+    </div>
+    
+    <div id="filled-modal" class="modal bg-white rounded-lg shadow-xl w-11/12 md:w-1/2 lg:w-2/5 p-6 overflow-y-auto max-h-screen">
+        <h3 class="text-2xl font-bold mb-6">Enter Hire Details</h3>
+        <form id="filled-form">
+             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="filled-name" class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" id="filled-name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div>
+                    <label for="filled-start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                    <input type="date" id="filled-start-date" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div>
+                    <label for="filled-recruiter" class="block text-sm font-medium text-gray-700">Recruiter</label>
+                    <input type="text" id="filled-recruiter" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100" readonly>
+                </div>
+                 <div>
+                    <label for="filled-manager" class="block text-sm font-medium text-gray-700">Reporting Manager</label>
+                    <input type="text" id="filled-manager" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100" readonly>
+                </div>
+                <div>
+                    <label for="filled-location" class="block text-sm font-medium text-gray-700">Location</label>
+                    <select id="filled-location" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option>Columbus</option>
+                        <option>Remote-ET</option>
+                        <option>Remote-CT</option>
+                        <option>Remote-MT</option>
+                        <option>Remote-PT</option>
+                        <option>Remote-Ohio</option>
+                        <option>Remote-Arizona</option>
+                        <option>Bogota</option>
+                        <option>Manila</option>
+                        <option>Lviv</option>
+                        <option>Krakow</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filled-work-type" class="block text-sm font-medium text-gray-700">Work-Type</label>
+                    <select id="filled-work-type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option>Remote</option>
+                        <option>Hybrid</option>
+                        <option>In-Office</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filled-source" class="block text-sm font-medium text-gray-700">Source</label>
+                    <input type="text" id="filled-source" placeholder="e.g., LinkedIn, Referral" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="filled-referral-bonus" class="block text-sm font-medium text-gray-700">Referral Bonus Amount</label>
+                    <input type="number" id="filled-referral-bonus" placeholder="e.g., 5000" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" id="filled-cancel-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors">Cancel</button>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Confirm Hire</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="unhire-modal" class="modal bg-white rounded-lg shadow-xl w-11/12 md:w-1/3 p-6">
+        <h3 class="text-lg font-bold mb-4">Confirm Action</h3>
+        <p class="text-sm text-gray-600 mb-4">Do you want to re-open this role? This will increase the opening count by one and set the status to Active.</p>
+        <div class="flex justify-end space-x-4 mt-6">
+            <button id="unhire-cancel-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+            <button id="unhire-no-btn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">No, Just Remove Hire</button>
+            <button id="unhire-yes-btn" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">Yes, Re-open Role</button>
+        </div>
+    </div>
+
+    <div id="password-modal" class="modal bg-white rounded-lg shadow-xl w-11/12 md:w-1/4 p-6">
+        <h3 class="text-lg font-bold mb-4">Enter Password</h3>
+        <p class="text-sm text-gray-600 mb-4">Please enter the password to view confidential roles.</p>
+        <form id="password-form">
+            <input type="password" id="password-input" class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+            <p id="password-error" class="text-red-500 text-sm mt-1 hidden">Incorrect password.</p>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" id="password-cancel-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors">Cancel</button>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Submit</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="widget-filter-modal" class="modal bg-white rounded-lg shadow-xl w-11/12 md:w-1/3 p-6">
+        <h3 id="widget-filter-title" class="text-lg font-bold mb-4">Filter Widget</h3>
+        <div id="widget-filter-container"></div>
+        <div class="flex justify-end space-x-4 mt-6">
+            <button id="widget-filter-clear-btn" class="text-sm text-blue-600 hover:underline">Clear</button>
+            <button id="widget-filter-close-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Done</button>
+        </div>
+    </div>
+
+    <div id="calendar-tooltip" class="hidden absolute bg-gray-800 text-white text-sm rounded-lg py-2 px-3 z-50 shadow-lg max-w-xs"></div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- YOUR FIREBASE CONFIGURATION ---
+            const firebaseConfig = {
+                apiKey: "AIzaSyAe6VaUrNQ65NZwmuspBvClivmmNETnZ7M",
+                authDomain: "matic-ta.firebaseapp.com",
+                databaseURL: "https://matic-ta-default-rtdb.firebaseio.com",
+                projectId: "matic-ta",
+                storageBucket: "matic-ta.appspot.com",
+                messagingSenderId: "511909184337",
+                appId: "1:511909184337:web:c452b54eef2393151e4970",
+                measurementId: "G-RR4RT10G39"
+            };
+
+            // --- USER ACCOUNTS & ACCESS CONTROL ---
+            const userAccounts = {
+                admin: { password: "admin123", level: "admin" },
+                user: { password: "user123", level: "viewer" }
+            };
+            let currentUserAccessLevel = null;
+
+            // --- DOM ELEMENTS ---
+            const loginView = document.getElementById('login-view');
+            const appView = document.getElementById('app-view');
+            const loginForm = document.getElementById('login-form');
+            const loginError = document.getElementById('login-error');
+            const logoutBtn = document.getElementById('logout-btn');
+
+            const spreadsheetView = document.getElementById('spreadsheet-view');
+            const calendarView = document.getElementById('calendar-view');
+            const hiresView = document.getElementById('hires-view');
+            const dashboardView = document.getElementById('dashboard-view');
+            const spreadsheetViewBtn = document.getElementById('spreadsheet-view-btn');
+            const calendarViewBtn = document.getElementById('calendar-view-btn');
+            const hiresViewBtn = document.getElementById('hires-view-btn');
+            const dashboardViewBtn = document.getElementById('dashboard-view-btn');
+            const spreadsheetBody = document.getElementById('spreadsheet-body');
+            const hiresBody = document.getElementById('hires-body');
+            const addNewBtn = document.getElementById('add-new-btn');
+            const modalBackdrop = document.getElementById('modal-backdrop');
+            const entryModal = document.getElementById('entry-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const entryForm = document.getElementById('entry-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const editIdInput = document.getElementById('edit-id');
+            const calendarContainer = document.getElementById('calendar-container');
+            const calendarHeader = document.getElementById('calendar-header');
+            const calendarGrid = document.getElementById('calendar-grid');
+            const prevMonthBtn = document.getElementById('prev-month-btn');
+            const nextMonthBtn = document.getElementById('next-month-btn');
+            const tooltip = document.getElementById('calendar-tooltip');
+            const mainFilterPanel = document.getElementById('main-filter-panel');
+            const filterContainer = document.getElementById('filter-container');
+            const clearFiltersBtn = document.getElementById('clear-filters-btn');
+            const toggleConfidentialBtn = document.getElementById('toggle-confidential-btn');
+            const passwordModal = document.getElementById('password-modal');
+            const passwordForm = document.getElementById('password-form');
+            const passwordInput = document.getElementById('password-input');
+            const passwordError = document.getElementById('password-error');
+            const passwordCancelBtn = document.getElementById('password-cancel-btn');
+            const filledModal = document.getElementById('filled-modal');
+            const filledForm = document.getElementById('filled-form');
+            const filledCancelBtn = document.getElementById('filled-cancel-btn');
+            const unhireModal = document.getElementById('unhire-modal');
+            const unhireYesBtn = document.getElementById('unhire-yes-btn');
+            const unhireNoBtn = document.getElementById('unhire-no-btn');
+            const unhireCancelBtn = document.getElementById('unhire-cancel-btn');
+            const dashboardDateFilter = document.getElementById('dashboard-date-filter');
+            const customDateContainer = document.getElementById('custom-date-container');
+            const dashboardStartDate = document.getElementById('dashboard-start-date');
+            const dashboardEndDate = document.getElementById('dashboard-end-date');
+            const widgetFilterModal = document.getElementById('widget-filter-modal');
+            const widgetFilterContainer = document.getElementById('widget-filter-container');
+            const widgetFilterCloseBtn = document.getElementById('widget-filter-close-btn');
+            const widgetFilterClearBtn = document.getElementById('widget-filter-clear-btn');
+            const widgetFilterTitle = document.getElementById('widget-filter-title');
+            const exportSpreadsheetBtn = document.getElementById('export-spreadsheet-btn');
+            const exportHiresBtn = document.getElementById('export-hires-btn');
+
+            // --- APP STATE ---
+            let hiringData = [];
+            let currentDate = new Date();
+            let activeFilters = {};
+            let dashboardWidgetFilters = {
+                totalHires: {},
+                avgTtf: {},
+                referralTotal: {},
+                hiresByRecruiter: {},
+                hiresBySource: {}
+            };
+            let confidentialVisible = false;
+            let tempRoleData = null;
+            let activeWidget = null;
+            
+            // --- FIREBASE STATE ---
+            let db;
+            let hiringCollection;
+            let unsubscribe; // To detach the real-time listener on logout
+
+            // --- DATA HANDLING (FIREBASE) ---
+            async function initializeFirebase() {
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    const auth = getAuth(app);
+                    const analytics = getAnalytics(app);
+
+                    // Sign in anonymously to get permissions based on your Firestore rules
+                    await signInAnonymously(auth);
+
+                    hiringCollection = collection(db, "hiringRoles");
+                    
+                    // Detach any existing listener before creating a new one
+                    if (unsubscribe) unsubscribe();
+
+                    // Real-time listener for data
+                    unsubscribe = onSnapshot(hiringCollection, (snapshot) => {
+                        hiringData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        
+                        // Initial render and setup after data is loaded
+                        applyUIAccessControls();
+                        renderFilters(filterContainer, activeFilters, (e) => updateFilterState(e, activeFilters, 'filter-container', applyFilters));
+                        switchView('spreadsheet');
+                    });
+
+                } catch (error) {
+                    console.error("Firebase initialization failed:", error);
+                    alert("Could not connect to Firebase. Please check your configuration and security rules.");
+                }
+            }
+
+            // --- UTILITY FUNCTIONS ---
+            const formatCurrency = (value) => {
+                if (value === null || value === undefined || isNaN(value)) return 'N/A';
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+            };
+
+            const calculateLastDayToHire = (startDateStr, location) => {
+                if (!startDateStr) return null;
+                const daysToSubtractMap = { 'Columbus': 7, 'Remote-ET': 14, 'Remote-CT': 14, 'Remote-MT': 14, 'Remote-PT': 14, 'Remote-Ohio': 14, 'Remote-Arizona': 14, 'Bogota': 10, 'Manila': 10, 'Lviv': 14, 'Krakow': 14 };
+                const daysToSubtract = daysToSubtractMap[location] || 14;
+                const startDate = new Date(startDateStr + 'T00:00:00');
+                startDate.setDate(startDate.getDate() - daysToSubtract);
+                return startDate;
+            };
+
+            const formatDate = (date) => {
+                if (!date) return 'N/A';
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            const openModal = (isEdit = false, id = null) => {
+                modalBackdrop.style.display = 'block';
+                entryModal.style.display = 'block';
+                entryForm.reset();
+                editIdInput.value = '';
+
+                if (isEdit) {
+                    modalTitle.textContent = 'Edit Role';
+                    const data = hiringData.find(item => item.id === id);
+                    if (!data) return;
+
+                    document.getElementById('department').value = data.department;
+                    document.getElementById('role').value = data.role;
+                    document.getElementById('location').value = data.location;
+                    document.getElementById('priority').value = data.priority;
+                    document.getElementById('status').value = data.status;
+                    document.getElementById('openings').value = data.openings;
+                    document.getElementById('open-date').value = data.openDate;
+                    document.getElementById('start-date').value = data.startDate;
+                    document.getElementById('recruiter').value = data.recruiter;
+                    document.getElementById('hiring-manager').value = data.hiringManager;
+                    document.getElementById('greenhouse-link').value = data.greenhouseLink;
+                    document.getElementById('confidential').checked = data.confidential;
+                    document.getElementById('base-salary').value = data.baseSalary;
+                    document.getElementById('equity').value = data.equity;
+                    document.getElementById('annual-bonus').value = data.annualBonus;
+                    document.getElementById('hire-type').value = data.hireType || 'External';
+                    document.getElementById('notes').value = data.notes || '';
+                    editIdInput.value = id;
+                } else {
+                    modalTitle.textContent = 'Add New Role';
+                }
+            };
+
+            const closeModal = () => {
+                modalBackdrop.style.display = 'none';
+                entryModal.style.display = 'none';
+                passwordModal.style.display = 'none';
+                filledModal.style.display = 'none';
+                unhireModal.style.display = 'none';
+                widgetFilterModal.style.display = 'none';
+            };
+
+            // --- FILTERING LOGIC ---
+            const renderFilters = (container, filterState, onUpdate) => {
+                const dataForFilters = confidentialVisible ? hiringData : hiringData.filter(item => !item.confidential);
+                container.innerHTML = '';
+                const filterConfigs = [
+                    { key: 'location', label: 'Location' },
+                    { key: 'recruiter', label: 'Recruiter' },
+                    { key: 'department', label: 'Department' },
+                    { key: 'status', label: 'Status' },
+                    { key: 'hiringManager', label: 'Hiring Manager' }
+                ];
+
+                filterConfigs.forEach(config => {
+                    const uniqueValues = [...new Set(dataForFilters.map(item => item[config.key]).filter(Boolean))].sort();
+                    
+                    const dropdownContainer = document.createElement('div');
+                    dropdownContainer.className = 'relative';
+
+                    const button = document.createElement('button');
+                    button.id = `filter-btn-${container.id}-${config.key}`;
+                    button.className = 'bg-gray-200 px-3 py-1 rounded-md text-sm text-gray-700 hover:bg-gray-300';
+                    
+                    const dropdownContent = document.createElement('div');
+                    dropdownContent.className = 'filter-dropdown-content absolute z-10 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 p-2 space-y-1';
+                    
+                    uniqueValues.forEach(value => {
+                        const label = document.createElement('label');
+                        label.className = 'flex items-center space-x-2 text-sm';
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'rounded';
+                        checkbox.value = value;
+                        checkbox.dataset.key = config.key;
+                        if (filterState[config.key] && filterState[config.key].includes(value)) {
+                            checkbox.checked = true;
+                        }
+                        checkbox.addEventListener('change', onUpdate);
+                        label.appendChild(checkbox);
+                        label.appendChild(document.createTextNode(value));
+                        dropdownContent.appendChild(label);
+                    });
+
+                    dropdownContainer.appendChild(button);
+                    dropdownContainer.appendChild(dropdownContent);
+                    container.appendChild(dropdownContainer);
+                    updateFilterButtonText(config.key, container.id, filterState);
+
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        closeAllDropdowns();
+                        dropdownContent.style.display = 'block';
+                    });
+                });
+            };
+
+            const closeAllDropdowns = () => {
+                document.querySelectorAll('.filter-dropdown-content').forEach(d => d.style.display = 'none');
+            };
+
+            const applyFilters = () => {
+                let dataToDisplay = confidentialVisible ? [...hiringData] : hiringData.filter(item => !item.confidential);
+
+                Object.entries(activeFilters).forEach(([key, values]) => {
+                    if (values.length > 0) {
+                        dataToDisplay = dataToDisplay.filter(item => values.includes(item[key]));
+                    }
+                });
+                renderSpreadsheet(dataToDisplay);
+                renderHiresView(dataToDisplay);
+                renderCalendar(dataToDisplay);
+            };
+            
+            const updateFilterState = (e, filterState, buttonContainerId, callback) => {
+                const { key } = e.target.dataset;
+                const value = e.target.value;
+                if (!filterState[key]) {
+                    filterState[key] = [];
+                }
+                if (e.target.checked) {
+                    filterState[key].push(value);
+                } else {
+                    filterState[key] = filterState[key].filter(v => v !== value);
+                }
+                updateFilterButtonText(key, buttonContainerId, filterState);
+                callback();
+            };
+            
+            const updateFilterButtonText = (key, containerId, filterState) => {
+                const button = document.getElementById(`filter-btn-${containerId}-${key}`);
+                if (!button) return;
+                const count = filterState[key] ? filterState[key].length : 0;
+                const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'); // Add space before caps
+                if (count > 0) {
+                    button.textContent = `${label} (${count})`;
+                    button.classList.add('bg-blue-200');
+                } else {
+                    button.textContent = label;
+                    button.classList.remove('bg-blue-200');
+                }
+            };
+
+            // --- SPREADSHEET & HIRES VIEW ---
+            const renderSpreadsheet = (data = []) => {
+                spreadsheetBody.innerHTML = '';
+                if (data.length === 0) {
+                    spreadsheetBody.innerHTML = `<tr><td colspan="18" class="text-center py-4 text-gray-500">No matching roles found.</td></tr>`;
+                    return;
+                }
+                data.forEach((item) => {
+                    const row = document.createElement('tr');
+                    const greenhouseLink = item.greenhouseLink ? `<a href="${item.greenhouseLink}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">View</a>` : 'N/A';
+                    const lastDayToHire = formatDate(calculateLastDayToHire(item.startDate, item.location));
+                    
+                    let actionsHtml = '';
+                    if (currentUserAccessLevel === 'admin') {
+                         actionsHtml = `<button class="text-indigo-600 hover:text-indigo-900 edit-btn" data-id="${item.id}">Edit</button>
+                                        <button class="text-red-600 hover:text-red-900 ml-4 delete-btn" data-id="${item.id}">Delete</button>`;
+                        if (item.status === 'Active') {
+                            actionsHtml += `<button class="text-green-600 hover:text-green-900 ml-4 hire-btn" data-id="${item.id}">Mark as Hired</button>`;
+                        }
+                    } else {
+                        actionsHtml = `<span class="text-gray-400">View Only</span>`;
+                    }
+
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.department}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.role} ${item.confidential ? '<span class="text-xs text-red-500">(C)</span>' : ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.location || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${getPriorityBadge(item.priority)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${getStatusBadge(item.status)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm">${item.openings}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${formatCurrency(item.baseSalary)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${formatCurrency(item.equity)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${formatCurrency(item.annualBonus)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.openDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.startDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-red-600 text-sm">${lastDayToHire}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.recruiter || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.hiringManager || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.hireType || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.notes || ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${greenhouseLink}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">${actionsHtml}</td>
+                    `;
+                    spreadsheetBody.appendChild(row);
+                });
+            };
+
+            const renderHiresView = (data = []) => {
+                const hiresData = [];
+                data.forEach((role) => {
+                    if (role.filledInfo && role.filledInfo.length > 0) {
+                        role.filledInfo.forEach((hire, hireIndex) => {
+                            hiresData.push({ ...hire, role, hireIndex });
+                        });
+                    }
+                });
+
+                hiresBody.innerHTML = '';
+                if (hiresData.length === 0) {
+                    hiresBody.innerHTML = `<tr><td colspan="12" class="text-center py-4 text-gray-500">No filled roles found.</td></tr>`;
+                    return;
+                }
+                hiresData.forEach(item => {
+                    const row = document.createElement('tr');
+                    
+                    let actionsHtml = '';
+                     if (currentUserAccessLevel === 'admin') {
+                        actionsHtml = `<button class="text-red-600 hover:text-red-900 unhire-btn" data-role-id="${item.role.id}" data-hire-index="${item.hireIndex}">Unhire</button>`;
+                     } else {
+                        actionsHtml = `<span class="text-gray-400">View Only</span>`;
+                    }
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.role.role}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.role.department}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.startDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.workType}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.location}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.manager}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.recruiter}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm">${item.ttf}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${item.source || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${formatCurrency(item.referralBonus)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">${actionsHtml}</td>
+                    `;
+                    hiresBody.appendChild(row);
+                });
+            };
+
+            const getStatusBadge = (status) => {
+                const baseClasses = "px-2 inline-flex text-xs leading-5 font-semibold rounded-full";
+                switch (status) {
+                    case 'Active': return `<span class="${baseClasses} bg-blue-100 text-blue-800">Active</span>`;
+                    case 'Filled': return `<span class="${baseClasses} bg-green-100 text-green-800">Filled</span>`;
+                    case 'Closed': return `<span class="${baseClasses} bg-gray-100 text-gray-800">Closed</span>`;
+                    case 'Canceled': return `<span class="${baseClasses} bg-red-100 text-red-800">Canceled</span>`;
+                    case 'Pending Approval': return `<span class="${baseClasses} bg-yellow-100 text-yellow-800">Pending Approval</span>`;
+                    case 'Coming Soon': return `<span class="${baseClasses} bg-purple-100 text-purple-800">Coming Soon</span>`;
+                    default: return `<span class="${baseClasses} bg-gray-100 text-gray-800">${status}</span>`;
+                }
+            };
+            
+            const getPriorityBadge = (priority) => {
+                const baseClasses = "px-2 inline-flex text-xs leading-5 font-semibold rounded-full";
+                if (priority === 'High') return `<span class="${baseClasses} bg-red-100 text-red-800">High</span>`;
+                if (priority === 'Medium') return `<span class="${baseClasses} bg-yellow-100 text-yellow-800">Medium</span>`;
+                return `<span class="${baseClasses} bg-green-100 text-green-800">Low</span>`;
+            };
+
+
+            // --- CALENDAR VIEW ---
+            const showMarkerTooltip = (e) => {
+                const marker = e.currentTarget;
+                const data = marker.dataset;
+                let content = `
+                    <div class="font-bold">${data.title}</div>
+                    <div>${data.role}</div>
+                    <div class="text-xs text-gray-300">Dept: ${data.dept}</div>
+                    <div class="text-xs text-gray-300">HM: ${data.hm}</div>
+                    <div class="text-xs text-gray-300">Recruiter: ${data.recruiter}</div>
+                `;
+                
+                if (data.targetStart && data.lastDay) {
+                    content += `<div class="text-xs text-gray-400 mt-1 pt-1 border-t border-gray-600">Target: ${data.targetStart}<br>Last Day: ${data.lastDay}</div>`;
+                }
+                
+                tooltip.innerHTML = content;
+                positionAndShowTooltip(e);
+            };
+            
+            const showActiveReqsTooltip = (e, date, data) => {
+                const activeRoles = data.filter(role => {
+                    if (role.status !== 'Active' || !role.openDate || !role.startDate) return false;
+                    const openDate = new Date(role.openDate + 'T00:00:00');
+                    const lastDay = calculateLastDayToHire(role.startDate, role.location);
+                    return date >= openDate && date <= lastDay;
+                });
+
+                let content = `<div class="font-bold">Active Roles</div><ul class="mt-1 space-y-2">`;
+                activeRoles.forEach(role => {
+                    const openDate = new Date(role.openDate + 'T00:00:00');
+                    const lastDay = calculateLastDayToHire(role.startDate, role.location);
+                    const daysOpen = Math.floor((date.getTime() - openDate.getTime()) / (1000 * 3600 * 24)) + 1;
+                    const daysLeft = Math.ceil((lastDay.getTime() - date.getTime()) / (1000 * 3600 * 24));
+
+                    content += `<li class="border-t border-gray-600 pt-1">
+                        <strong>${role.role}</strong>
+                        <div class="text-xs text-gray-300">Recruiter: ${role.recruiter || 'N/A'}</div>
+                        <div class="text-xs text-gray-300">Days Open: ${daysOpen}</div>
+                        <div class="text-xs text-gray-300">Days Left to Fill: ${daysLeft}</div>
+                    </li>`;
+                });
+                content += '</ul>';
+                
+                tooltip.innerHTML = content;
+                positionAndShowTooltip(e);
+            };
+
+            const positionAndShowTooltip = (e) => {
+                const containerRect = calendarContainer.getBoundingClientRect();
+                tooltip.style.left = `${e.clientX - containerRect.left + 15}px`;
+                tooltip.style.top = `${e.clientY - containerRect.top + 15}px`;
+                tooltip.classList.remove('hidden');
+            };
+
+            const hideTooltip = () => {
+                tooltip.classList.add('hidden');
+            };
+
+            const renderCalendar = (data = []) => {
+                if (calendarView.classList.contains('hidden')) return;
+
+                calendarGrid.innerHTML = '';
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+
+                calendarHeader.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
+
+                const firstDayOfMonth = new Date(year, month, 1);
+                const lastDayOfMonth = new Date(year, month + 1, 0);
+                
+                const firstDayOfWeek = firstDayOfMonth.getDay();
+
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                dayNames.forEach(day => {
+                    const dayHeader = document.createElement('div');
+                    dayHeader.className = 'text-center font-bold text-gray-600 text-sm h-10 flex items-center justify-center';
+                    dayHeader.textContent = day;
+                    calendarGrid.appendChild(dayHeader);
+                });
+
+                for (let i = 0; i < firstDayOfWeek; i++) {
+                    calendarGrid.appendChild(document.createElement('div'));
+                }
+
+                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                    const date = new Date(year, month, day);
+                    const dayCell = document.createElement('div');
+                    dayCell.className = 'calendar-day border rounded-lg p-2 text-sm';
+                    dayCell.id = `day-${formatDate(date)}`;
+                    dayCell.innerHTML = `<span class="font-semibold">${day}</span>`;
+                    
+                    const activeRoles = data.filter(role => {
+                        if (role.status !== 'Active' || !role.openDate || !role.startDate) return false;
+                        const openDate = new Date(role.openDate + 'T00:00:00');
+                        const lastDay = calculateLastDayToHire(role.startDate, role.location);
+                        return date >= openDate && date <= lastDay;
+                    });
+                    const totalActiveOpenings = activeRoles.reduce((sum, role) => sum + role.openings, 0);
+
+                    if (totalActiveOpenings > 0) {
+                        const countBadge = document.createElement('div');
+                        countBadge.className = 'active-req-count';
+                        countBadge.textContent = totalActiveOpenings;
+                        countBadge.addEventListener('mouseenter', (e) => showActiveReqsTooltip(e, date, data));
+                        countBadge.addEventListener('mouseleave', hideTooltip);
+                        dayCell.appendChild(countBadge);
+                    }
+
+                    calendarGrid.appendChild(dayCell);
+                }
+                
+                setTimeout(() => renderCalendarEvents(year, month, data), 0);
+            };
+
+            const renderCalendarEvents = (year, month, data) => {
+                const firstDayOfMonth = new Date(year, month, 1);
+                const lastDayOfMonth = new Date(year, month + 1, 0);
+
+                const rolesInView = data.filter(role => {
+                    if (role.status !== 'Active' || !role.openDate || !role.startDate) return false;
+                    const openDate = new Date(role.openDate + 'T00:00:00');
+                    const lastDay = calculateLastDayToHire(role.startDate, role.location);
+                    return openDate <= lastDayOfMonth && lastDay >= firstDayOfMonth;
+                });
+
+                rolesInView.forEach(role => {
+                    const openDate = new Date(role.openDate + 'T00:00:00');
+                    const lastDayToHire = calculateLastDayToHire(role.startDate, role.location);
+                    const targetStartDate = new Date(role.startDate + 'T00:00:00');
+
+                    [
+                        { date: openDate, icon: '🟢', title: 'Open Date' },
+                        { date: lastDayToHire, icon: '🔴', title: 'Last Day to Hire' },
+                        { date: targetStartDate, icon: '🏁', title: 'Target Start Date' }
+                    ].forEach(markerInfo => {
+                        const markerCell = document.getElementById(`day-${formatDate(markerInfo.date)}`);
+                        if (markerCell) {
+                            const marker = document.createElement('div');
+                            marker.className = 'date-marker';
+                            marker.textContent = markerInfo.icon;
+                            marker.dataset.role = role.role;
+                            marker.dataset.dept = role.department;
+                            marker.dataset.hm = role.hiringManager || 'N/A';
+                            marker.dataset.recruiter = role.recruiter || 'N/A';
+                            marker.dataset.title = markerInfo.title;
+                            
+                            if (markerInfo.title === 'Open Date') {
+                                marker.dataset.targetStart = role.startDate;
+                                marker.dataset.lastDay = formatDate(lastDayToHire);
+                            }
+                            
+                            marker.addEventListener('mouseenter', showMarkerTooltip);
+                            marker.addEventListener('mouseleave', hideTooltip);
+                            markerCell.appendChild(marker);
+                        }
+                    });
+                });
+            };
+
+            // --- DASHBOARD LOGIC ---
+             const renderDashboard = () => {
+                let dataToDisplay = confidentialVisible ? hiringData : hiringData.filter(item => !item.confidential);
+
+                // 1. Get all hires
+                let allHires = [];
+                dataToDisplay.forEach(role => {
+                    if (role.filledInfo && role.filledInfo.length > 0) {
+                        role.filledInfo.forEach(hire => {
+                            allHires.push({ ...hire, role });
+                        });
+                    }
+                });
+
+                // 2. Filter by date range
+                const dateRange = dashboardDateFilter.value;
+                const now = new Date();
+                let startDate, endDate;
+
+                if (dateRange === 'month') {
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                } else if (dateRange === 'quarter') {
+                    const quarter = Math.floor(now.getMonth() / 3);
+                    startDate = new Date(now.getFullYear(), quarter * 3, 1);
+                    endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+                } else if (dateRange === 'year') {
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    endDate = new Date(now.getFullYear(), 11, 31);
+                } else if (dateRange === 'custom') {
+                    if (dashboardStartDate.value) {
+                        startDate = new Date(dashboardStartDate.value + 'T00:00:00');
+                    }
+                    if (dashboardEndDate.value) {
+                        endDate = new Date(dashboardEndDate.value + 'T23:59:59');
+                    }
+                }
+
+                if (startDate || endDate) {
+                    allHires = allHires.filter(hire => {
+                        const hireDate = new Date(hire.startDate + 'T00:00:00');
+                        const startMatch = startDate ? hireDate >= startDate : true;
+                        const endMatch = endDate ? hireDate <= endDate : true;
+                        return startMatch && endMatch;
+                    });
+                }
+                
+                // 3. Filter and render each widget
+                renderWidget('totalHires', allHires);
+                renderWidget('avgTtf', allHires);
+                renderWidget('referralTotal', allHires);
+                renderWidget('hiresByRecruiter', allHires);
+                renderWidget('hiresBySource', allHires);
+            };
+
+            const renderWidget = (widgetName, allHires) => {
+                let filteredHires = [...allHires];
+                const widgetFilters = dashboardWidgetFilters[widgetName];
+                
+                Object.entries(widgetFilters).forEach(([key, values]) => {
+                    if (values && values.length > 0) {
+                         filteredHires = filteredHires.filter(hire => {
+                             // Check if hire.role exists and has the key
+                            return hire.role && values.includes(hire.role[key]);
+                        });
+                    }
+                });
+
+                switch(widgetName) {
+                    case 'totalHires':
+                        document.getElementById('total-hires-stat').textContent = filteredHires.length;
+                        break;
+                    case 'avgTtf':
+                        const validHiresForTtf = filteredHires.filter(h => h.ttf !== null && h.ttf !== undefined);
+                        const totalTtf = validHiresForTtf.reduce((sum, hire) => sum + hire.ttf, 0);
+                        document.getElementById('avg-ttf-stat').textContent = validHiresForTtf.length > 0 ? (totalTtf / validHiresForTtf.length).toFixed(1) : '0';
+                        break;
+                    case 'referralTotal':
+                        const totalReferralBonus = filteredHires.reduce((sum, hire) => sum + (hire.referralBonus || 0), 0);
+                        document.getElementById('referral-total-stat').textContent = formatCurrency(totalReferralBonus);
+                        break;
+                    case 'hiresByRecruiter':
+                        const hiresByRecruiter = filteredHires.reduce((acc, hire) => {
+                            const recruiter = hire.recruiter || 'Unknown';
+                            acc[recruiter] = (acc[recruiter] || 0) + 1;
+                            return acc;
+                        }, {});
+                        document.getElementById('hires-by-recruiter-stat').innerHTML = Object.entries(hiresByRecruiter)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([name, count]) => `<div>${name}: <span class="font-bold">${count}</span></div>`).join('');
+                        break;
+                    case 'hiresBySource':
+                         const hiresBySource = filteredHires.reduce((acc, hire) => {
+                            const source = hire.source || 'Unknown';
+                            acc[source] = (acc[source] || 0) + 1;
+                            return acc;
+                        }, {});
+                        document.getElementById('hires-by-source-stat').innerHTML = Object.entries(hiresBySource)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([name, count]) => `<div>${name}: <span class="font-bold">${count}</span></div>`).join('');
+                        break;
+                }
+            };
+            
+            // --- UI Access Control ---
+            const applyUIAccessControls = () => {
+                const isAdmin = currentUserAccessLevel === 'admin';
+                addNewBtn.style.display = isAdmin ? 'block' : 'none';
+                
+                // Re-render views to apply access control to dynamic elements
+                applyFilters();
+            };
+
+
+            // --- EVENT LISTENERS ---
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const pass = document.getElementById('password').value;
+                const account = userAccounts[username];
+
+                if (account && account.password === pass) {
+                    currentUserAccessLevel = account.level;
+                    loginView.style.display = 'none';
+                    appView.style.display = 'block';
+                    loginError.classList.add('hidden');
+                    
+                    initializeFirebase();
+                } else {
+                    loginError.classList.remove('hidden');
+                }
+            });
+
+            logoutBtn.addEventListener('click', () => {
+                // Detach the Firebase listener to prevent background data sync
+                if (unsubscribe) {
+                    unsubscribe();
+                }
+                hiringData = []; // Clear local data
+                currentUserAccessLevel = null;
+                appView.style.display = 'none';
+                loginView.style.display = 'flex'; 
+                document.getElementById('username').value = '';
+                document.getElementById('password').value = '';
+            });
+
+            const viewButtons = {
+                dashboard: { btn: dashboardViewBtn, view: dashboardView },
+                spreadsheet: { btn: spreadsheetViewBtn, view: spreadsheetView },
+                calendar: { btn: calendarViewBtn, view: calendarView },
+                hires: { btn: hiresViewBtn, view: hiresView }
+            };
+
+            const switchView = (targetView) => {
+                Object.keys(viewButtons).forEach(key => {
+                    const { btn, view } = viewButtons[key];
+                    if (key === targetView) {
+                        view.classList.remove('hidden');
+                        btn.classList.add('bg-blue-600', 'text-white');
+                        btn.classList.remove('bg-white', 'text-blue-600');
+                    } else {
+                        view.classList.add('hidden');
+                        btn.classList.remove('bg-blue-600', 'text-white');
+                        btn.classList.add('bg-white', 'text-blue-600');
+                    }
+                });
+                
+                mainFilterPanel.style.display = targetView === 'dashboard' ? 'none' : 'block';
+
+                if (targetView === 'dashboard') {
+                    renderDashboard();
+                } else {
+                    applyFilters();
+                }
+            };
+
+            dashboardViewBtn.addEventListener('click', () => switchView('dashboard'));
+            spreadsheetViewBtn.addEventListener('click', () => switchView('spreadsheet'));
+            calendarViewBtn.addEventListener('click', () => switchView('calendar'));
+            hiresViewBtn.addEventListener('click', () => switchView('hires'));
+
+            addNewBtn.addEventListener('click', () => openModal());
+            cancelBtn.addEventListener('click', closeModal);
+            modalBackdrop.addEventListener('click', closeModal);
+            
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.relative')) {
+                    closeAllDropdowns();
+                }
+            });
+
+            filterContainer.addEventListener('change', (e) => updateFilterState(e, activeFilters, 'filter-container', applyFilters));
+            
+            dashboardDateFilter.addEventListener('change', (e) => {
+                if (e.target.value === 'custom') {
+                    customDateContainer.classList.remove('hidden');
+                    customDateContainer.classList.add('flex');
+                } else {
+                    customDateContainer.classList.add('hidden');
+                    customDateContainer.classList.remove('flex');
+                }
+                renderDashboard();
+            });
+            dashboardStartDate.addEventListener('change', renderDashboard);
+            dashboardEndDate.addEventListener('change', renderDashboard);
+            
+            clearFiltersBtn.addEventListener('click', () => {
+                activeFilters = {};
+                renderFilters(filterContainer, activeFilters, (e) => updateFilterState(e, activeFilters, 'filter-container', applyFilters));
+                applyFilters();
+            });
+
+            toggleConfidentialBtn.addEventListener('click', () => {
+                if (confidentialVisible) {
+                    confidentialVisible = false;
+                    toggleConfidentialBtn.textContent = 'View Confidential';
+                    renderFilters(filterContainer, activeFilters, (e) => updateFilterState(e, activeFilters, 'filter-container', applyFilters));
+                    applyFilters();
+                } else {
+                    modalBackdrop.style.display = 'block';
+                    passwordModal.style.display = 'block';
+                    passwordInput.focus();
+                }
+            });
+
+            passwordCancelBtn.addEventListener('click', closeModal);
+
+            passwordForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (passwordInput.value === 'confidential1!') {
+                    confidentialVisible = true;
+                    toggleConfidentialBtn.textContent = 'Hide Confidential';
+                    passwordInput.value = '';
+                    passwordError.classList.add('hidden');
+                    closeModal();
+                    renderFilters(filterContainer, activeFilters, (e) => updateFilterState(e, activeFilters, 'filter-container', applyFilters));
+                    applyFilters();
+                } else {
+                    passwordError.classList.remove('hidden');
+                }
+            });
+
+            entryForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (currentUserAccessLevel !== 'admin') return;
+
+                const id = editIdInput.value;
+                const entryData = {
+                    department: document.getElementById('department').value,
+                    role: document.getElementById('role').value,
+                    location: document.getElementById('location').value,
+                    priority: document.getElementById('priority').value,
+                    status: document.getElementById('status').value,
+                    openings: parseInt(document.getElementById('openings').value, 10),
+                    openDate: document.getElementById('open-date').value,
+                    startDate: document.getElementById('start-date').value,
+                    recruiter: document.getElementById('recruiter').value,
+                    hiringManager: document.getElementById('hiring-manager').value,
+                    greenhouseLink: document.getElementById('greenhouse-link').value,
+                    confidential: document.getElementById('confidential').checked,
+                    baseSalary: parseFloat(document.getElementById('base-salary').value) || null,
+                    equity: parseFloat(document.getElementById('equity').value) || null,
+                    annualBonus: parseFloat(document.getElementById('annual-bonus').value) || null,
+                    hireType: document.getElementById('hire-type').value,
+                    notes: document.getElementById('notes').value,
+                };
+
+                try {
+                    if (id) { // Editing existing
+                        const docRef = doc(db, "hiringRoles", id);
+                        await updateDoc(docRef, entryData);
+                    } else { // Adding new
+                        await addDoc(hiringCollection, { ...entryData, filledInfo: [], createdAt: serverTimestamp() });
+                    }
+                } catch (error) {
+                    console.error("Error saving document: ", error);
+                    alert("Error saving data to Firebase.");
+                }
+                
+                closeModal();
+            });
+
+            filledCancelBtn.addEventListener('click', () => {
+                tempRoleData = null;
+                closeModal();
+            });
+
+            filledForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (currentUserAccessLevel !== 'admin') return;
+
+                const role = hiringData.find(item => item.id === tempRoleData.id);
+                if (!role) return;
+                
+                const openDate = new Date(role.openDate + 'T00:00:00');
+                const filledStartDate = new Date(document.getElementById('filled-start-date').value + 'T00:00:00');
+                const ttf = Math.ceil((filledStartDate.getTime() - openDate.getTime()) / (1000 * 3600 * 24));
+
+                const hireInfo = {
+                    name: document.getElementById('filled-name').value,
+                    startDate: document.getElementById('filled-start-date').value,
+                    recruiter: document.getElementById('filled-recruiter').value,
+                    manager: document.getElementById('filled-manager').value,
+                    location: document.getElementById('filled-location').value,
+                    workType: document.getElementById('filled-work-type').value,
+                    source: document.getElementById('filled-source').value,
+                    referralBonus: parseFloat(document.getElementById('filled-referral-bonus').value) || null,
+                    ttf: ttf
+                };
+                
+                const updatedFilledInfo = [...role.filledInfo, hireInfo];
+                const updatedOpenings = role.openings - 1;
+                const updatedStatus = updatedOpenings <= 0 ? 'Filled' : role.status;
+
+                try {
+                    const docRef = doc(db, "hiringRoles", tempRoleData.id);
+                    await updateDoc(docRef, {
+                        filledInfo: updatedFilledInfo,
+                        openings: updatedOpenings,
+                        status: updatedStatus
+                    });
+                } catch (error) {
+                    console.error("Error updating document for hire: ", error);
+                    alert("Error saving hire data to Firebase.");
+                }
+
+                closeModal();
+                tempRoleData = null;
+            });
+
+            spreadsheetBody.addEventListener('click', async (e) => {
+                const target = e.target;
+                const id = target.dataset.id;
+                if (!id) return;
+
+                if (target.classList.contains('edit-btn')) {
+                    openModal(true, id);
+                } else if (target.classList.contains('delete-btn')) {
+                    if (currentUserAccessLevel !== 'admin') return;
+                    if (window.confirm('Are you sure you want to delete this entry?')) {
+                        try {
+                           await deleteDoc(doc(db, "hiringRoles", id));
+                        } catch (error) {
+                            console.error("Error deleting document: ", error);
+                            alert("Error deleting data from Firebase.");
+                        }
+                    }
+                } else if (target.classList.contains('hire-btn')) {
+                    tempRoleData = hiringData.find(item => item.id === id);
+                    document.getElementById('filled-recruiter').value = tempRoleData.recruiter;
+                    document.getElementById('filled-manager').value = tempRoleData.hiringManager;
+                    document.getElementById('filled-location').value = tempRoleData.location;
+                    modalBackdrop.style.display = 'block';
+                    filledModal.style.display = 'block';
+                }
+            });
+
+            hiresBody.addEventListener('click', (e) => {
+                if (e.target.classList.contains('unhire-btn')) {
+                    const { roleId, hireIndex } = e.target.dataset;
+                    unhireYesBtn.dataset.roleId = roleId;
+                    unhireYesBtn.dataset.hireIndex = hireIndex;
+                    unhireNoBtn.dataset.roleId = roleId;
+                    unhireNoBtn.dataset.hireIndex = hireIndex;
+                    modalBackdrop.style.display = 'block';
+                    unhireModal.style.display = 'block';
+                }
+            });
+            
+            unhireCancelBtn.addEventListener('click', closeModal);
+
+            unhireNoBtn.addEventListener('click', async (e) => {
+                if (currentUserAccessLevel !== 'admin') return;
+                const { roleId, hireIndex } = e.currentTarget.dataset;
+                const role = hiringData.find(item => item.id === roleId);
+                const updatedFilledInfo = [...role.filledInfo];
+                updatedFilledInfo.splice(hireIndex, 1);
+                
+                try {
+                    const docRef = doc(db, "hiringRoles", roleId);
+                    await updateDoc(docRef, { filledInfo: updatedFilledInfo });
+                } catch (error) {
+                    console.error("Error 'unhiring': ", error);
+                    alert("Error updating Firebase.");
+                }
+                closeModal();
+            });
+
+            unhireYesBtn.addEventListener('click', async (e) => {
+                if (currentUserAccessLevel !== 'admin') return;
+                const { roleId, hireIndex } = e.currentTarget.dataset;
+                const role = hiringData.find(item => item.id === roleId);
+                const updatedFilledInfo = [...role.filledInfo];
+                updatedFilledInfo.splice(hireIndex, 1);
+                
+                try {
+                    const docRef = doc(db, "hiringRoles", roleId);
+                    await updateDoc(docRef, {
+                        filledInfo: updatedFilledInfo,
+                        openings: role.openings + 1,
+                        status: 'Active'
+                    });
+                } catch (error) {
+                    console.error("Error 're-opening role': ", error);
+                    alert("Error updating Firebase.");
+                }
+                closeModal();
+            });
+
+            prevMonthBtn.addEventListener('click', () => {
+                currentDate.setMonth(currentDate.getMonth() - 1);
+                applyFilters();
+            });
+
+            nextMonthBtn.addEventListener('click', () => {
+                currentDate.setMonth(currentDate.getMonth() + 1);
+                applyFilters();
+            });
+
+            window.addEventListener('resize', () => {
+                if (!calendarView.classList.contains('hidden')) {
+                    applyFilters();
+                }
+            });
+            
+            // --- EXPORT ---
+            const exportToXLSX = (data, filename) => {
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Data");
+                XLSX.writeFile(wb, filename);
+            };
+
+            exportSpreadsheetBtn.addEventListener('click', () => {
+                let dataToExport = confidentialVisible ? [...hiringData] : hiringData.filter(item => !item.confidential);
+                Object.entries(activeFilters).forEach(([key, values]) => {
+                    if (values.length > 0) {
+                        dataToExport = dataToExport.filter(item => values.includes(item[key]));
+                    }
+                });
+                const flattenedData = dataToExport.map(item => ({...item, filledInfo: JSON.stringify(item.filledInfo)}));
+                exportToXLSX(flattenedData, 'hiring-needs.xlsx');
+            });
+
+            exportHiresBtn.addEventListener('click', () => {
+                let dataToFilter = confidentialVisible ? [...hiringData] : hiringData.filter(item => !item.confidential);
+                Object.entries(activeFilters).forEach(([key, values]) => {
+                    if (values.length > 0) {
+                        dataToFilter = dataToFilter.filter(item => values.includes(item[key]));
+                    }
+                });
+                
+                const hiresData = [];
+                dataToFilter.forEach(role => {
+                    if (role.filledInfo && role.filledInfo.length > 0) {
+                        role.filledInfo.forEach(hire => {
+                            hiresData.push({ 
+                                "Hired Name": hire.name,
+                                "Role": role.role,
+                                "Department": role.department,
+                                "Start Date": hire.startDate,
+                                "Work Type": hire.workType,
+                                "Location": hire.location,
+                                "Manager": hire.manager,
+                                "Recruiter": hire.recruiter,
+                                "TTF": hire.ttf,
+                                "Source": hire.source,
+                                "Referral Bonus": hire.referralBonus
+                            });
+                        });
+                    }
+                });
+                exportToXLSX(hiresData, 'hires.xlsx');
+            });
+            
+            // --- WIDGET FILTER MODAL ---
+            document.querySelectorAll('.widget-filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    activeWidget = e.currentTarget.dataset.widget;
+                    widgetFilterTitle.textContent = `Filter: ${e.currentTarget.parentElement.querySelector('h4').textContent}`;
+                    const renderDashboardFilters = () => renderFilters(widgetFilterContainer, dashboardWidgetFilters[activeWidget], (e) => updateFilterState(e, dashboardWidgetFilters[activeWidget], 'widget-filter-container', renderDashboard));
+                    renderDashboardFilters();
+                    modalBackdrop.style.display = 'block';
+                    widgetFilterModal.style.display = 'block';
+                });
+            });
+
+            widgetFilterCloseBtn.addEventListener('click', closeModal);
+            widgetFilterClearBtn.addEventListener('click', () => {
+                if (activeWidget) {
+                    dashboardWidgetFilters[activeWidget] = {};
+                    const renderDashboardFilters = () => renderFilters(widgetFilterContainer, dashboardWidgetFilters[activeWidget], (e) => updateFilterState(e, dashboardWidgetFilters[activeWidget], 'widget-filter-container', renderDashboard));
+                    renderDashboardFilters();
+                    renderDashboard();
+                }
+            });
+
+        });
+    </script>
+
+</body>
+</html>
